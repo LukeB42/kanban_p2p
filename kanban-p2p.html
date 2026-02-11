@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Kanban Board</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0a1128 0%, #001f3f 50%, #000000 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0a1128 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .sync-status {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .status-indicator.connected {
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #1e3a8a;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #1e40af;
+        }
+
+        button.secondary {
+            background: #6b7280;
+        }
+
+        button.secondary:hover {
+            background: #4b5563;
+        }
+
+        .board {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+
+        .column {
+            background: #f3f4f6;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 300px;
+            max-width: 300px;
+        }
+
+        .column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .column-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .card-count {
+            background: #1e3a8a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .cards {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 100px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: move;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .card-title {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+
+        .card-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .add-card {
+            width: 100%;
+            margin-top: 10px;
+            background: white;
+            color: #1e3a8a;
+            border: 2px dashed #1e3a8a;
+        }
+
+        .add-card:hover {
+            background: #f9fafb;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .connection-code {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+
+        .device-list {
+            list-style: none;
+        }
+
+        .device-item {
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 2000;
+        }
+
+        .toast.active {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .dragging {
+            opacity: 0.5;
+        }
+
+        .drag-over {
+            border: 2px dashed #1e3a8a;
+        }
+
+        .peer-item {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .peer-item:hover {
+            background: #f3f4f6;
+            border-color: #1e3a8a;
+        }
+
+        .peer-item.connected {
+            background: #ecfdf5;
+            border-color: #4ade80;
+        }
+
+        .peer-info {
+            flex: 1;
+        }
+
+        .peer-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .peer-device {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .peer-status {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+
+        .peer-actions button {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 P2P Kanban Board</h1>
+            <div class="user-info">
+                <div class="user-badge">
+                    <div class="user-avatar" id="userAvatar"></div>
+                    <div>
+                        <div id="userName"></div>
+                        <div style="font-size: 12px; color: #6b7280;" id="deviceName"></div>
+                    </div>
+                </div>
+                <div class="sync-status">
+                    <button onclick="app.showConnectModal()">🔄 Sync</button>
+                    <button class="secondary" onclick="app.showDevicesModal()">📱 Devices</button>
+                    <button class="secondary" onclick="app.showSettingsModal()">⚙️ Settings</button>
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="peerCount">0 peers</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="board" id="board">
+            <!-- Columns will be rendered here -->
+        </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div class="modal active" id="setupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Welcome! Set up your identity</h2>
+            </div>
+            <div class="form-group">
+                <label>Your Name</label>
+                <input type="text" id="setupUserName" placeholder="Alice">
+            </div>
+            <div class="form-group">
+                <label>Device Name</label>
+                <input type="text" id="setupDeviceName" placeholder="My Laptop">
+            </div>
+            <div class="modal-actions">
+                <button onclick="app.completeSetup()">Create Identity</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connect Modal -->
+    <div class="modal" id="connectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Sync with LAN Devices</h2>
+                <p style="color: #6b7280; font-size: 14px; margin-top: 10px;">
+                    Devices on your local network will appear below. Click to connect.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 20px; padding: 15px; background: #f9fafb; border-radius: 5px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #333;">
+                    Signaling Server (Optional)
+                </label>
+                <input 
+                    type="text" 
+                    id="signalingServerInput" 
+                    placeholder="ws://192.168.1.100:8765" 
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 12px;"
+                />
+                <p style="font-size: 11px; color: #6b7280; margin-top: 5px;">
+                    Enter WebSocket signaling server for cross-device discovery. Leave blank for same-browser discovery only.
+                </p>
+            </div>
+            
+            <div id="scanningIndicator" style="display: none; text-align: center; padding: 20px;">
+                <div style="font-size: 40px; animation: spin 2s linear infinite;">🔄</div>
+                <p style="margin-top: 10px; color: #6b7280;">Scanning for devices...</p>
+            </div>
+
+            <div id="discoveredPeers" style="margin: 20px 0;">
+                <h3 style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">Discovered Devices</h3>
+                <ul class="device-list" id="peerList"></ul>
+                <p id="noPeersMessage" style="color: #9ca3af; font-size: 14px; text-align: center; padding: 20px;">
+                    No devices found. Make sure other devices have the Sync panel open.
+                </p>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">
+                    💡 <strong>Tip:</strong> For best results, both devices should be on the same WiFi network.
+                </p>
+                <details style="font-size: 12px; color: #6b7280;">
+                    <summary style="cursor: pointer; user-select: none;">Advanced: Manual Connection</summary>
+                    <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 5px;">
+                        <p style="margin-bottom: 10px;">If automatic discovery doesn't work, you can manually connect:</p>
+                        <button class="secondary" onclick="app.showManualConnect()">Manual Connection</button>
+                    </div>
+                </details>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button onclick="app.startDiscovery()" id="startScanBtn">🔍 Start Scanning</button>
+                <button class="secondary" onclick="app.stopDiscovery()">Stop</button>
+                <button class="secondary" onclick="app.closeConnectModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Connect Modal -->
+    <div class="modal" id="manualConnectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Manual Connection</h2>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <button onclick="app.createOffer()">Create Connection Code</button>
+                <button class="secondary" onclick="app.showAnswerInput()">Enter Connection Code</button>
+            </div>
+            <div id="offerSection" style="display: none;">
+                <p>Share this code with the other device:</p>
+                <div class="connection-code" id="offerCode"></div>
+                <button onclick="app.copyOffer()">Copy Code</button>
+                <div style="margin-top: 20px;">
+                    <label>Paste their response code here:</label>
+                    <textarea id="answerInput" style="width: 100%; min-height: 100px; font-family: monospace; font-size: 11px;"></textarea>
+                    <button onclick="app.acceptAnswer()" style="margin-top: 10px;">Connect</button>
+                </div>
+            </div>
+            <div id="answerSection" style="display: none;">
+                <label>Paste the connection code from the other device:</label>
+                <textarea id="offerInput" style="width: 100%; min-height: 100px; font-family: monospace; font-size: 11px;"></textarea>
+                <button onclick="app.acceptOffer()" style="margin-top: 10px;">Generate Response Code</button>
+                <div id="answerCodeSection" style="display: none; margin-top: 20px;">
+                    <p>Send this code back to them:</p>
+                    <div class="connection-code" id="answerCode"></div>
+                    <button onclick="app.copyAnswer()">Copy Code</button>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="secondary" onclick="app.closeManualConnectModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Devices Modal -->
+    <div class="modal" id="devicesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>My Devices</h2>
+            </div>
+            <ul class="device-list" id="deviceList"></ul>
+            <div class="modal-actions">
+                <button class="secondary" onclick="app.closeDevicesModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+            </div>
+            <div class="form-group">
+                <label>User Name</label>
+                <input type="text" id="settingsUserName">
+            </div>
+            <div class="form-group">
+                <label>Device Name</label>
+                <input type="text" id="settingsDeviceName">
+            </div>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                <button class="secondary" onclick="app.exportData()">📥 Export Data</button>
+                <button class="secondary" onclick="app.clearAllData()" style="background: #dc2626; margin-left: 10px;">🗑️ Clear All Data</button>
+            </div>
+            <div class="modal-actions">
+                <button onclick="app.saveSettings()">Save</button>
+                <button class="secondary" onclick="app.closeSettingsModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Card Modal -->
+    <div class="modal" id="cardModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="cardModalTitle">Add Card</h2>
+            </div>
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="cardTitle" placeholder="Task title">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="cardDescription" placeholder="Task description"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button onclick="app.saveCard()">Save</button>
+                <button class="secondary" onclick="app.closeCardModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ============================================
+        // Crypto Utilities
+        // ============================================
+        const crypto_utils = {
+            async generateKeyPair() {
+                return await crypto.subtle.generateKey(
+                    {
+                        name: "ECDSA",
+                        namedCurve: "P-256"
+                    },
+                    true,
+                    ["sign", "verify"]
+                );
+            },
+
+            async exportPublicKey(publicKey) {
+                return await crypto.subtle.exportKey("jwk", publicKey);
+            },
+
+            async exportPrivateKey(privateKey) {
+                return await crypto.subtle.exportKey("jwk", privateKey);
+            },
+
+            async importPublicKey(jwk) {
+                return await crypto.subtle.importKey(
+                    "jwk",
+                    jwk,
+                    {name: "ECDSA", namedCurve: "P-256"},
+                    true,
+                    ["verify"]
+                );
+            },
+
+            async importPrivateKey(jwk) {
+                return await crypto.subtle.importKey(
+                    "jwk",
+                    jwk,
+                    {name: "ECDSA", namedCurve: "P-256"},
+                    true,
+                    ["sign"]
+                );
+            },
+
+            async sign(data, privateKey) {
+                const encoder = new TextEncoder();
+                const signature = await crypto.subtle.sign(
+                    {name: "ECDSA", hash: "SHA-256"},
+                    privateKey,
+                    encoder.encode(JSON.stringify(data))
+                );
+                return Array.from(new Uint8Array(signature));
+            },
+
+            async verify(data, signature, publicKey) {
+                const encoder = new TextEncoder();
+                return await crypto.subtle.verify(
+                    {name: "ECDSA", hash: "SHA-256"},
+                    publicKey,
+                    new Uint8Array(signature),
+                    encoder.encode(JSON.stringify(data))
+                );
+            },
+
+            generateUUID() {
+                return crypto.randomUUID();
+            }
+        };
+
+        // ============================================
+        // Storage Manager
+        // ============================================
+        const storage = {
+            get(key) {
+                const value = localStorage.getItem(key);
+                return value ? JSON.parse(value) : null;
+            },
+
+            set(key, value) {
+                localStorage.setItem(key, JSON.stringify(value));
+            },
+
+            remove(key) {
+                localStorage.removeItem(key);
+            },
+
+            clear() {
+                localStorage.clear();
+            }
+        };
+
+        // ============================================
+        // Application State
+        // ============================================
+        class KanbanApp {
+            constructor() {
+                this.identity = null;
+                this.currentDevice = null;
+                this.board = {
+                    operations: [],
+                    snapshot: {
+                        columns: [
+                            {id: 'todo', title: 'To Do', cards: []},
+                            {id: 'in-progress', title: 'In Progress', cards: []},
+                            {id: 'done', title: 'Done', cards: []}
+                        ]
+                    }
+                };
+                this.peers = new Map();
+                this.peerConnections = new Map();
+                this.dataChannels = new Map();
+                this.pendingOfferData = null;
+                this.currentCardColumn = null;
+                this.editingCardId = null;
+
+                // LAN Discovery
+                this.broadcastChannel = null;
+                this.websocket = null;
+                this.signalingServerUrl = null;
+                this.discoveryInterval = null;
+                this.discoveredPeers = new Map();
+                this.pendingConnections = new Map();
+
+                this.init();
+            }
+
+            async init() {
+                // Load identity
+                const identityData = storage.get('identity');
+                if (identityData) {
+                    this.identity = identityData;
+                    this.currentDevice = storage.get('currentDevice');
+                    
+                    // Load board data
+                    const boardData = storage.get('board');
+                    if (boardData) {
+                        this.board = boardData;
+                    }
+
+                    document.getElementById('setupModal').classList.remove('active');
+                    this.renderUI();
+                } else {
+                    // Show setup modal
+                    document.getElementById('setupModal').classList.add('active');
+                }
+            }
+
+            async completeSetup() {
+                const userName = document.getElementById('setupUserName').value.trim();
+                const deviceName = document.getElementById('setupDeviceName').value.trim();
+
+                if (!userName || !deviceName) {
+                    this.showToast('Please enter both name and device name');
+                    return;
+                }
+
+                // Generate master keypair
+                const masterKeyPair = await crypto_utils.generateKeyPair();
+                const masterPublicKey = await crypto_utils.exportPublicKey(masterKeyPair.publicKey);
+                const masterPrivateKey = await crypto_utils.exportPrivateKey(masterKeyPair.privateKey);
+
+                // Generate device keypair
+                const deviceKeyPair = await crypto_utils.generateKeyPair();
+                const devicePublicKey = await crypto_utils.exportPublicKey(deviceKeyPair.publicKey);
+                const devicePrivateKey = await crypto_utils.exportPrivateKey(deviceKeyPair.privateKey);
+
+                const userId = crypto_utils.generateUUID();
+                const deviceId = crypto_utils.generateUUID();
+
+                this.identity = {
+                    userId,
+                    userName,
+                    masterPublicKey,
+                    masterPrivateKey,
+                    devices: [{
+                        deviceId,
+                        deviceName,
+                        publicKey: devicePublicKey,
+                        addedAt: Date.now()
+                    }]
+                };
+
+                this.currentDevice = {
+                    deviceId,
+                    deviceName,
+                    publicKey: devicePublicKey,
+                    privateKey: devicePrivateKey
+                };
+
+                storage.set('identity', this.identity);
+                storage.set('currentDevice', this.currentDevice);
+
+                document.getElementById('setupModal').classList.remove('active');
+                this.renderUI();
+                this.showToast('Identity created successfully!');
+            }
+
+            renderUI() {
+                // Update header
+                document.getElementById('userAvatar').textContent = this.identity.userName.charAt(0).toUpperCase();
+                document.getElementById('userName').textContent = this.identity.userName;
+                document.getElementById('deviceName').textContent = this.currentDevice.deviceName;
+
+                // Render board
+                this.renderBoard();
+                this.updatePeerCount();
+            }
+
+            renderBoard() {
+                const boardEl = document.getElementById('board');
+                boardEl.innerHTML = '';
+
+                this.board.snapshot.columns.forEach(column => {
+                    const columnEl = document.createElement('div');
+                    columnEl.className = 'column';
+                    columnEl.innerHTML = `
+                        <div class="column-header">
+                            <span class="column-title">${column.title}</span>
+                            <span class="card-count">${column.cards.length}</span>
+                        </div>
+                        <div class="cards" data-column-id="${column.id}"></div>
+                        <button class="add-card" onclick="app.showAddCardModal('${column.id}')">+ Add Card</button>
+                    `;
+
+                    const cardsEl = columnEl.querySelector('.cards');
+                    
+                    // Enable drop
+                    cardsEl.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        cardsEl.classList.add('drag-over');
+                    });
+
+                    cardsEl.addEventListener('dragleave', () => {
+                        cardsEl.classList.remove('drag-over');
+                    });
+
+                    cardsEl.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        cardsEl.classList.remove('drag-over');
+                        const cardId = e.dataTransfer.getData('text/plain');
+                        this.moveCard(cardId, column.id);
+                    });
+
+                    column.cards.forEach(card => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = 'card';
+                        cardEl.draggable = true;
+                        cardEl.setAttribute('data-card-id', card.id);
+                        
+                        cardEl.addEventListener('dragstart', (e) => {
+                            e.dataTransfer.setData('text/plain', card.id);
+                            cardEl.classList.add('dragging');
+                        });
+
+                        cardEl.addEventListener('dragend', () => {
+                            cardEl.classList.remove('dragging');
+                        });
+
+                        cardEl.addEventListener('click', () => {
+                            this.showEditCardModal(card.id, column.id);
+                        });
+
+                        cardEl.innerHTML = `
+                            <div class="card-title">${card.title}</div>
+                            ${card.description ? `<div class="card-description">${card.description}</div>` : ''}
+                            <div class="card-meta">
+                                <span>ID: ${card.id.substring(0, 8)}</span>
+                            </div>
+                        `;
+
+                        cardsEl.appendChild(cardEl);
+                    });
+
+                    boardEl.appendChild(columnEl);
+                });
+            }
+
+            showAddCardModal(columnId) {
+                this.currentCardColumn = columnId;
+                this.editingCardId = null;
+                document.getElementById('cardModalTitle').textContent = 'Add Card';
+                document.getElementById('cardTitle').value = '';
+                document.getElementById('cardDescription').value = '';
+                document.getElementById('cardModal').classList.add('active');
+            }
+
+            showEditCardModal(cardId, columnId) {
+                const column = this.board.snapshot.columns.find(c => c.id === columnId);
+                const card = column.cards.find(c => c.id === cardId);
+                
+                this.currentCardColumn = columnId;
+                this.editingCardId = cardId;
+                document.getElementById('cardModalTitle').textContent = 'Edit Card';
+                document.getElementById('cardTitle').value = card.title;
+                document.getElementById('cardDescription').value = card.description || '';
+                document.getElementById('cardModal').classList.add('active');
+            }
+
+            closeCardModal() {
+                document.getElementById('cardModal').classList.remove('active');
+                this.currentCardColumn = null;
+                this.editingCardId = null;
+            }
+
+            async saveCard() {
+                const title = document.getElementById('cardTitle').value.trim();
+                if (!title) {
+                    this.showToast('Please enter a title');
+                    return;
+                }
+
+                const description = document.getElementById('cardDescription').value.trim();
+
+                if (this.editingCardId) {
+                    // Update existing card
+                    await this.addOperation({
+                        type: 'update_card',
+                        cardId: this.editingCardId,
+                        columnId: this.currentCardColumn,
+                        title,
+                        description
+                    });
+                } else {
+                    // Create new card
+                    const cardId = crypto_utils.generateUUID();
+                    await this.addOperation({
+                        type: 'add_card',
+                        cardId,
+                        columnId: this.currentCardColumn,
+                        title,
+                        description
+                    });
+                }
+
+                this.closeCardModal();
+            }
+
+            async moveCard(cardId, toColumnId) {
+                await this.addOperation({
+                    type: 'move_card',
+                    cardId,
+                    toColumnId
+                });
+            }
+
+            async addOperation(action) {
+                const operation = {
+                    id: crypto_utils.generateUUID(),
+                    userId: this.identity.userId,
+                    deviceId: this.currentDevice.deviceId,
+                    timestamp: Date.now(),
+                    action
+                };
+
+                // Sign operation
+                const privateKey = await crypto_utils.importPrivateKey(this.currentDevice.privateKey);
+                operation.signature = await crypto_utils.sign(operation, privateKey);
+
+                this.board.operations.push(operation);
+                this.applyOperation(operation);
+                storage.set('board', this.board);
+                this.renderBoard();
+
+                // Broadcast to peers
+                this.broadcastOperation(operation);
+            }
+
+            applyOperation(operation) {
+                const action = operation.action;
+
+                switch (action.type) {
+                    case 'add_card':
+                        const column = this.board.snapshot.columns.find(c => c.id === action.columnId);
+                        if (column) {
+                            column.cards.push({
+                                id: action.cardId,
+                                title: action.title,
+                                description: action.description
+                            });
+                        }
+                        break;
+
+                    case 'update_card':
+                        const updateColumn = this.board.snapshot.columns.find(c => c.id === action.columnId);
+                        if (updateColumn) {
+                            const card = updateColumn.cards.find(c => c.id === action.cardId);
+                            if (card) {
+                                card.title = action.title;
+                                card.description = action.description;
+                            }
+                        }
+                        break;
+
+                    case 'move_card':
+                        // Find and remove card from current column
+                        let card = null;
+                        for (const col of this.board.snapshot.columns) {
+                            const idx = col.cards.findIndex(c => c.id === action.cardId);
+                            if (idx !== -1) {
+                                card = col.cards.splice(idx, 1)[0];
+                                break;
+                            }
+                        }
+                        // Add to new column
+                        if (card) {
+                            const toColumn = this.board.snapshot.columns.find(c => c.id === action.toColumnId);
+                            if (toColumn) {
+                                toColumn.cards.push(card);
+                            }
+                        }
+                        break;
+                }
+            }
+
+            // ============================================
+            // LAN Discovery & Auto-Sync
+            // ============================================
+            showConnectModal() {
+                document.getElementById('connectModal').classList.add('active');
+                this.renderPeerList();
+                this.startDiscovery();
+            }
+
+            closeConnectModal() {
+                this.stopDiscovery();
+                document.getElementById('connectModal').classList.remove('active');
+            }
+
+            showManualConnect() {
+                document.getElementById('manualConnectModal').classList.add('active');
+                document.getElementById('offerSection').style.display = 'none';
+                document.getElementById('answerSection').style.display = 'none';
+            }
+
+            closeManualConnectModal() {
+                document.getElementById('manualConnectModal').classList.remove('active');
+            }
+
+            startDiscovery() {
+                if (this.discoveryInterval) {
+                    return; // Already running
+                }
+
+                document.getElementById('scanningIndicator').style.display = 'block';
+                document.getElementById('startScanBtn').disabled = true;
+
+                // Get signaling server URL
+                const serverUrl = document.getElementById('signalingServerInput').value.trim();
+                
+                if (serverUrl) {
+                    // Use WebSocket signaling server
+                    this.connectToSignalingServer(serverUrl);
+                } else {
+                    // Use BroadcastChannel for same-origin discovery
+                    this.broadcastChannel = new BroadcastChannel('kanban-discovery');
+                    
+                    this.broadcastChannel.onmessage = (event) => {
+                        this.handleDiscoveryMessage(event.data);
+                    };
+                }
+
+                // Start broadcasting presence
+                this.discoveryInterval = setInterval(() => {
+                    this.broadcastPresence();
+                }, 2000);
+
+                // Immediate broadcast
+                this.broadcastPresence();
+
+                this.showToast('Scanning for devices...');
+            }
+
+            connectToSignalingServer(url) {
+                try {
+                    this.websocket = new WebSocket(url);
+                    
+                    this.websocket.onopen = () => {
+                        console.log('Connected to signaling server');
+                        this.showToast('Connected to signaling server');
+                        
+                        // Join default room
+                        this.websocket.send(JSON.stringify({
+                            type: 'join',
+                            room: 'kanban-default'
+                        }));
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.handleDiscoveryMessage(data);
+                    };
+                    
+                    this.websocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.showToast('Failed to connect to signaling server');
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        console.log('Disconnected from signaling server');
+                        this.websocket = null;
+                    };
+                    
+                    this.signalingServerUrl = url;
+                } catch (error) {
+                    console.error('Failed to connect to signaling server:', error);
+                    this.showToast('Invalid signaling server URL');
+                }
+            }
+
+            stopDiscovery() {
+                if (this.discoveryInterval) {
+                    clearInterval(this.discoveryInterval);
+                    this.discoveryInterval = null;
+                }
+
+                if (this.broadcastChannel) {
+                    this.broadcastChannel.close();
+                    this.broadcastChannel = null;
+                }
+
+                if (this.websocket) {
+                    this.websocket.close();
+                    this.websocket = null;
+                }
+
+                document.getElementById('scanningIndicator').style.display = 'none';
+                document.getElementById('startScanBtn').disabled = false;
+            }
+
+            broadcastPresence() {
+                if (!this.identity) return;
+
+                const announcement = {
+                    type: 'presence',
+                    userId: this.identity.userId,
+                    userName: this.identity.userName,
+                    deviceId: this.currentDevice.deviceId,
+                    deviceName: this.currentDevice.deviceName,
+                    publicKey: this.currentDevice.publicKey,
+                    timestamp: Date.now(),
+                    room: 'kanban-default'
+                };
+
+                // Send via BroadcastChannel if available
+                if (this.broadcastChannel) {
+                    this.broadcastChannel.postMessage(announcement);
+                }
+
+                // Send via WebSocket if connected
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(JSON.stringify(announcement));
+                }
+            }
+
+            async handleDiscoveryMessage(message) {
+                switch (message.type) {
+                    case 'presence':
+                        // Don't add ourselves
+                        if (message.deviceId === this.currentDevice.deviceId) {
+                            return;
+                        }
+
+                        // Add or update peer
+                        this.discoveredPeers.set(message.deviceId, {
+                            userId: message.userId,
+                            userName: message.userName,
+                            deviceId: message.deviceId,
+                            deviceName: message.deviceName,
+                            publicKey: message.publicKey,
+                            lastSeen: Date.now(),
+                            isConnected: this.dataChannels.has(message.deviceId)
+                        });
+
+                        this.renderPeerList();
+                        break;
+
+                    case 'offer':
+                        await this.handleIncomingOffer(message);
+                        break;
+
+                    case 'answer':
+                        await this.handleIncomingAnswer(message);
+                        break;
+
+                    case 'ice-candidate':
+                        await this.handleIncomingIceCandidate(message);
+                        break;
+                }
+            }
+
+            renderPeerList() {
+                const list = document.getElementById('peerList');
+                const noPeersMsg = document.getElementById('noPeersMessage');
+                
+                list.innerHTML = '';
+
+                // Remove stale peers (not seen in 10 seconds)
+                const now = Date.now();
+                for (const [deviceId, peer] of this.discoveredPeers.entries()) {
+                    if (now - peer.lastSeen > 10000) {
+                        this.discoveredPeers.delete(deviceId);
+                    }
+                }
+
+                if (this.discoveredPeers.size === 0) {
+                    noPeersMsg.style.display = 'block';
+                    return;
+                }
+
+                noPeersMsg.style.display = 'none';
+
+                this.discoveredPeers.forEach((peer, deviceId) => {
+                    const isConnected = this.peers.has(deviceId) || this.dataChannels.has(deviceId);
+                    const isPending = this.pendingConnections.has(deviceId);
+
+                    const li = document.createElement('li');
+                    li.className = 'peer-item' + (isConnected ? ' connected' : '');
+                    
+                    let statusText = 'Available';
+                    let buttonText = 'Connect';
+                    let buttonDisabled = false;
+
+                    if (isConnected) {
+                        statusText = '✓ Connected';
+                        buttonText = 'Connected';
+                        buttonDisabled = true;
+                    } else if (isPending) {
+                        statusText = 'Connecting...';
+                        buttonText = 'Connecting...';
+                        buttonDisabled = true;
+                    }
+
+                    li.innerHTML = `
+                        <div class="peer-info">
+                            <div class="peer-name">${peer.userName}</div>
+                            <div class="peer-device">📱 ${peer.deviceName}</div>
+                            <div class="peer-status">${statusText}</div>
+                        </div>
+                        <div class="peer-actions">
+                            <button onclick="app.connectToPeer('${deviceId}')" ${buttonDisabled ? 'disabled' : ''}>
+                                ${buttonText}
+                            </button>
+                        </div>
+                    `;
+                    
+                    list.appendChild(li);
+                });
+            }
+
+            async connectToPeer(deviceId) {
+                const peer = this.discoveredPeers.get(deviceId);
+                if (!peer || this.peers.has(deviceId)) {
+                    return;
+                }
+
+                this.pendingConnections.set(deviceId, true);
+                this.renderPeerList();
+
+                try {
+                    // Create peer connection
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                    });
+
+                    // Store connection
+                    this.peerConnections.set(deviceId, pc);
+
+                    // Handle ICE candidates
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            const msg = {
+                                type: 'ice-candidate',
+                                candidate: event.candidate,
+                                from: this.currentDevice.deviceId,
+                                to: deviceId,
+                                room: 'kanban-default'
+                            };
+                            
+                            if (this.broadcastChannel) {
+                                this.broadcastChannel.postMessage(msg);
+                            }
+                            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                                this.websocket.send(JSON.stringify(msg));
+                            }
+                        }
+                    };
+
+                    // Create data channel
+                    const channel = pc.createDataChannel('kanban-sync-' + deviceId);
+                    this.setupDataChannel(channel, deviceId);
+
+                    // Create and send offer
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+
+                    const offerMsg = {
+                        type: 'offer',
+                        offer: offer,
+                        from: this.currentDevice.deviceId,
+                        fromUser: this.identity.userName,
+                        fromDeviceName: this.currentDevice.deviceName,
+                        fromPublicKey: this.currentDevice.publicKey,
+                        to: deviceId,
+                        room: 'kanban-default'
+                    };
+
+                    if (this.broadcastChannel) {
+                        this.broadcastChannel.postMessage(offerMsg);
+                    }
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send(JSON.stringify(offerMsg));
+                    }
+
+                    this.showToast(`Connecting to ${peer.userName}...`);
+                } catch (error) {
+                    console.error('Error connecting to peer:', error);
+                    this.pendingConnections.delete(deviceId);
+                    this.renderPeerList();
+                    this.showToast('Failed to connect');
+                }
+            }
+
+            async handleIncomingOffer(message) {
+                if (message.to !== this.currentDevice.deviceId) {
+                    return;
+                }
+
+                const fromDeviceId = message.from;
+
+                try {
+                    // Create peer connection
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                    });
+
+                    this.peerConnections.set(fromDeviceId, pc);
+
+                    // Handle ICE candidates
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            const msg = {
+                                type: 'ice-candidate',
+                                candidate: event.candidate,
+                                from: this.currentDevice.deviceId,
+                                to: fromDeviceId,
+                                room: 'kanban-default'
+                            };
+                            
+                            if (this.broadcastChannel) {
+                                this.broadcastChannel.postMessage(msg);
+                            }
+                            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                                this.websocket.send(JSON.stringify(msg));
+                            }
+                        }
+                    };
+
+                    // Handle incoming data channel
+                    pc.ondatachannel = (event) => {
+                        this.setupDataChannel(event.channel, fromDeviceId);
+                    };
+
+                    // Set remote description
+                    await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
+
+                    // Create and send answer
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    const answerMsg = {
+                        type: 'answer',
+                        answer: answer,
+                        from: this.currentDevice.deviceId,
+                        to: fromDeviceId,
+                        room: 'kanban-default'
+                    };
+
+                    if (this.broadcastChannel) {
+                        this.broadcastChannel.postMessage(answerMsg);
+                    }
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send(JSON.stringify(answerMsg));
+                    }
+
+                    // Store peer info
+                    this.peers.set(fromDeviceId, {
+                        userId: message.fromUser,
+                        userName: message.fromUser,
+                        deviceId: fromDeviceId,
+                        deviceName: message.fromDeviceName,
+                        publicKey: message.fromPublicKey
+                    });
+
+                    this.renderPeerList();
+                } catch (error) {
+                    console.error('Error handling offer:', error);
+                }
+            }
+
+            async handleIncomingAnswer(message) {
+                if (message.to !== this.currentDevice.deviceId) {
+                    return;
+                }
+
+                const pc = this.peerConnections.get(message.from);
+                if (!pc) {
+                    return;
+                }
+
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
+                    
+                    const peer = this.discoveredPeers.get(message.from);
+                    if (peer) {
+                        this.peers.set(message.from, peer);
+                    }
+
+                    this.pendingConnections.delete(message.from);
+                    this.renderPeerList();
+                } catch (error) {
+                    console.error('Error handling answer:', error);
+                    this.pendingConnections.delete(message.from);
+                    this.renderPeerList();
+                }
+            }
+
+            async handleIncomingIceCandidate(message) {
+                if (message.to !== this.currentDevice.deviceId) {
+                    return;
+                }
+
+                const pc = this.peerConnections.get(message.from);
+                if (pc && message.candidate) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+                    } catch (error) {
+                        console.error('Error adding ICE candidate:', error);
+                    }
+                }
+            }
+
+            // ============================================
+            // Manual Connection (Fallback)
+            // ============================================
+
+            async createOffer() {
+                const pc = new RTCPeerConnection({
+                    iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                });
+
+                const deviceId = 'manual-' + crypto_utils.generateUUID();
+                const channel = pc.createDataChannel('kanban-sync-' + deviceId);
+                this.setupDataChannel(channel, deviceId);
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                // Wait for ICE gathering
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        pc.addEventListener('icegatheringstatechange', () => {
+                            if (pc.iceGatheringState === 'complete') {
+                                resolve();
+                            }
+                        });
+                    }
+                });
+
+                const offerData = {
+                    offer: pc.localDescription,
+                    userId: this.identity.userId,
+                    userName: this.identity.userName,
+                    deviceId: this.currentDevice.deviceId,
+                    deviceName: this.currentDevice.deviceName,
+                    publicKey: this.currentDevice.publicKey
+                };
+
+                this.pendingOfferData = {pc, offerData, manualDeviceId: deviceId};
+
+                document.getElementById('offerCode').textContent = JSON.stringify(offerData);
+                document.getElementById('offerSection').style.display = 'block';
+                document.getElementById('answerSection').style.display = 'none';
+            }
+
+            copyOffer() {
+                const code = document.getElementById('offerCode').textContent;
+                navigator.clipboard.writeText(code);
+                this.showToast('Code copied to clipboard!');
+            }
+
+            showAnswerInput() {
+                document.getElementById('offerSection').style.display = 'none';
+                document.getElementById('answerSection').style.display = 'block';
+                document.getElementById('answerCodeSection').style.display = 'none';
+            }
+
+            async acceptOffer() {
+                const offerInput = document.getElementById('offerInput').value.trim();
+                if (!offerInput) {
+                    this.showToast('Please paste the connection code');
+                    return;
+                }
+
+                try {
+                    const offerData = JSON.parse(offerInput);
+
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                    });
+
+                    const deviceId = offerData.deviceId;
+
+                    pc.ondatachannel = (event) => {
+                        this.setupDataChannel(event.channel, deviceId);
+                    };
+
+                    await pc.setRemoteDescription(offerData.offer);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    // Wait for ICE gathering
+                    await new Promise(resolve => {
+                        if (pc.iceGatheringState === 'complete') {
+                            resolve();
+                        } else {
+                            pc.addEventListener('icegatheringstatechange', () => {
+                                if (pc.iceGatheringState === 'complete') {
+                                    resolve();
+                                }
+                            });
+                        }
+                    });
+
+                    const answerData = {
+                        answer: pc.localDescription,
+                        userId: this.identity.userId,
+                        userName: this.identity.userName,
+                        deviceId: this.currentDevice.deviceId,
+                        deviceName: this.currentDevice.deviceName,
+                        publicKey: this.currentDevice.publicKey
+                    };
+
+                    // Store peer info
+                    this.peerConnections.set(deviceId, pc);
+                    this.peers.set(deviceId, {
+                        userId: offerData.userId,
+                        userName: offerData.userName,
+                        deviceId: offerData.deviceId,
+                        deviceName: offerData.deviceName,
+                        publicKey: offerData.publicKey
+                    });
+
+                    document.getElementById('answerCode').textContent = JSON.stringify(answerData);
+                    document.getElementById('answerCodeSection').style.display = 'block';
+                    this.showToast('Connection in progress...');
+                } catch (e) {
+                    this.showToast('Invalid connection code');
+                    console.error(e);
+                }
+            }
+
+            copyAnswer() {
+                const code = document.getElementById('answerCode').textContent;
+                navigator.clipboard.writeText(code);
+                this.showToast('Code copied to clipboard!');
+            }
+
+            async acceptAnswer() {
+                const answerInput = document.getElementById('answerInput').value.trim();
+                if (!answerInput) {
+                    this.showToast('Please paste the response code');
+                    return;
+                }
+
+                try {
+                    const answerData = JSON.parse(answerInput);
+                    const {pc, manualDeviceId} = this.pendingOfferData;
+
+                    await pc.setRemoteDescription(answerData.answer);
+
+                    const deviceId = answerData.deviceId;
+
+                    // Store peer info
+                    this.peerConnections.set(deviceId, pc);
+                    this.peers.set(deviceId, {
+                        userId: answerData.userId,
+                        userName: answerData.userName,
+                        deviceId: answerData.deviceId,
+                        deviceName: answerData.deviceName,
+                        publicKey: answerData.publicKey
+                    });
+
+                    this.showToast('Connected successfully!');
+                    this.closeManualConnectModal();
+                } catch (e) {
+                    this.showToast('Invalid response code');
+                    console.error(e);
+                }
+            }
+
+            setupDataChannel(channel, deviceId) {
+                channel.onopen = () => {
+                    console.log('Data channel opened with', deviceId);
+                    this.dataChannels.set(deviceId, channel);
+                    this.pendingConnections.delete(deviceId);
+                    this.updatePeerCount();
+                    this.updateConnectionStatus();
+                    this.renderPeerList();
+                    
+                    // Send sync request
+                    this.sendMessage(channel, {
+                        type: 'sync_request',
+                        operationCount: this.board.operations.length
+                    });
+
+                    this.showToast('Connected and syncing...');
+                };
+
+                channel.onclose = () => {
+                    console.log('Data channel closed with', deviceId);
+                    this.dataChannels.delete(deviceId);
+                    this.updatePeerCount();
+                    this.updateConnectionStatus();
+                    this.renderPeerList();
+                };
+
+                channel.onmessage = async (event) => {
+                    const message = JSON.parse(event.data);
+                    await this.handleMessage(message, channel);
+                };
+            }
+
+            async handleMessage(message, channel) {
+                switch (message.type) {
+                    case 'sync_request':
+                        // Compare operation counts
+                        if (this.board.operations.length > message.operationCount) {
+                            // Send our operations
+                            this.sendMessage(channel, {
+                                type: 'operations',
+                                operations: this.board.operations
+                            });
+                        } else if (this.board.operations.length < message.operationCount) {
+                            // Request their operations
+                            this.sendMessage(channel, {
+                                type: 'request_operations'
+                            });
+                        }
+                        break;
+
+                    case 'request_operations':
+                        this.sendMessage(channel, {
+                            type: 'operations',
+                            operations: this.board.operations
+                        });
+                        break;
+
+                    case 'operations':
+                        await this.mergeOperations(message.operations);
+                        break;
+
+                    case 'operation':
+                        await this.receiveOperation(message.operation);
+                        break;
+                }
+            }
+
+            async mergeOperations(operations) {
+                // Verify and merge operations
+                const validOps = [];
+                
+                for (const op of operations) {
+                    // Check if we already have this operation
+                    if (this.board.operations.some(existing => existing.id === op.id)) {
+                        continue;
+                    }
+
+                    // Verify signature
+                    const peer = Array.from(this.peers.values()).find(p => p.deviceId === op.deviceId);
+                    if (peer) {
+                        const publicKey = await crypto_utils.importPublicKey(peer.publicKey);
+                        const {signature, ...data} = op;
+                        const isValid = await crypto_utils.verify(data, signature, publicKey);
+                        
+                        if (isValid) {
+                            validOps.push(op);
+                        }
+                    }
+                }
+
+                if (validOps.length > 0) {
+                    // Add and sort all operations by timestamp
+                    this.board.operations.push(...validOps);
+                    this.board.operations.sort((a, b) => {
+                        if (a.timestamp !== b.timestamp) {
+                            return a.timestamp - b.timestamp;
+                        }
+                        // Deterministic ordering for same timestamp
+                        return a.deviceId.localeCompare(b.deviceId);
+                    });
+
+                    // Rebuild snapshot from operations
+                    this.rebuildSnapshot();
+                    storage.set('board', this.board);
+                    this.renderBoard();
+                    this.showToast(`Synced ${validOps.length} operations`);
+                }
+            }
+
+            async receiveOperation(operation) {
+                // Check if we already have this operation
+                if (this.board.operations.some(existing => existing.id === operation.id)) {
+                    return;
+                }
+
+                // Verify signature
+                const peer = Array.from(this.peers.values()).find(p => p.deviceId === operation.deviceId);
+                if (peer) {
+                    const publicKey = await crypto_utils.importPublicKey(peer.publicKey);
+                    const {signature, ...data} = operation;
+                    const isValid = await crypto_utils.verify(data, signature, publicKey);
+                    
+                    if (isValid) {
+                        this.board.operations.push(operation);
+                        this.board.operations.sort((a, b) => {
+                            if (a.timestamp !== b.timestamp) {
+                                return a.timestamp - b.timestamp;
+                            }
+                            return a.deviceId.localeCompare(b.deviceId);
+                        });
+
+                        this.applyOperation(operation);
+                        storage.set('board', this.board);
+                        this.renderBoard();
+                    }
+                }
+            }
+
+            rebuildSnapshot() {
+                // Reset to initial state
+                this.board.snapshot = {
+                    columns: [
+                        {id: 'todo', title: 'To Do', cards: []},
+                        {id: 'in-progress', title: 'In Progress', cards: []},
+                        {id: 'done', title: 'Done', cards: []}
+                    ]
+                };
+
+                // Replay all operations
+                for (const op of this.board.operations) {
+                    this.applyOperation(op);
+                }
+            }
+
+            sendMessage(channel, message) {
+                if (channel.readyState === 'open') {
+                    channel.send(JSON.stringify(message));
+                }
+            }
+
+            broadcastOperation(operation) {
+                const message = {
+                    type: 'operation',
+                    operation
+                };
+
+                this.dataChannels.forEach(channel => {
+                    this.sendMessage(channel, message);
+                });
+            }
+
+            updatePeerCount() {
+                const count = this.dataChannels.size;
+                document.getElementById('peerCount').textContent = `${count} peer${count !== 1 ? 's' : ''}`;
+            }
+
+            updateConnectionStatus() {
+                const indicator = document.getElementById('statusIndicator');
+                const hasConnection = this.dataChannels.size > 0;
+                
+                if (hasConnection) {
+                    indicator.classList.add('connected');
+                } else {
+                    indicator.classList.remove('connected');
+                }
+            }
+
+            // ============================================
+            // Device Management
+            // ============================================
+            showDevicesModal() {
+                this.renderDeviceList();
+                document.getElementById('devicesModal').classList.add('active');
+            }
+
+            closeDevicesModal() {
+                document.getElementById('devicesModal').classList.remove('active');
+            }
+
+            renderDeviceList() {
+                const list = document.getElementById('deviceList');
+                list.innerHTML = '';
+
+                this.identity.devices.forEach(device => {
+                    const li = document.createElement('li');
+                    li.className = 'device-item';
+                    const isCurrent = device.deviceId === this.currentDevice.deviceId;
+                    li.innerHTML = `
+                        <div>
+                            <strong>${device.deviceName}</strong>
+                            ${isCurrent ? '<span style="color: #1e3a8a;"> (This device)</span>' : ''}
+                            <div style="font-size: 12px; color: #6b7280;">
+                                Added: ${new Date(device.addedAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                        ${!isCurrent ? `<button class="secondary" onclick="app.removeDevice('${device.deviceId}')">Remove</button>` : ''}
+                    `;
+                    list.appendChild(li);
+                });
+            }
+
+            removeDevice(deviceId) {
+                if (confirm('Are you sure you want to remove this device?')) {
+                    this.identity.devices = this.identity.devices.filter(d => d.deviceId !== deviceId);
+                    storage.set('identity', this.identity);
+                    this.renderDeviceList();
+                    this.showToast('Device removed');
+                }
+            }
+
+            // ============================================
+            // Settings
+            // ============================================
+            showSettingsModal() {
+                document.getElementById('settingsUserName').value = this.identity.userName;
+                document.getElementById('settingsDeviceName').value = this.currentDevice.deviceName;
+                document.getElementById('settingsModal').classList.add('active');
+            }
+
+            closeSettingsModal() {
+                document.getElementById('settingsModal').classList.remove('active');
+            }
+
+            saveSettings() {
+                this.identity.userName = document.getElementById('settingsUserName').value.trim();
+                this.currentDevice.deviceName = document.getElementById('settingsDeviceName').value.trim();
+
+                // Update in identity.devices
+                const deviceIndex = this.identity.devices.findIndex(d => d.deviceId === this.currentDevice.deviceId);
+                if (deviceIndex !== -1) {
+                    this.identity.devices[deviceIndex].deviceName = this.currentDevice.deviceName;
+                }
+
+                storage.set('identity', this.identity);
+                storage.set('currentDevice', this.currentDevice);
+
+                this.renderUI();
+                this.closeSettingsModal();
+                this.showToast('Settings saved');
+            }
+
+            exportData() {
+                const data = {
+                    identity: this.identity,
+                    currentDevice: this.currentDevice,
+                    board: this.board
+                };
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `kanban-export-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                this.showToast('Data exported');
+            }
+
+            clearAllData() {
+                if (confirm('Are you sure? This will delete all data and cannot be undone.')) {
+                    storage.clear();
+                    location.reload();
+                }
+            }
+
+            // ============================================
+            // UI Utilities
+            // ============================================
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('active');
+
+                setTimeout(() => {
+                    toast.classList.remove('active');
+                }, 3000);
+            }
+        }
+
+        // Initialize app
+        const app = new KanbanApp();
+    </script>
+</body>
+</html>
