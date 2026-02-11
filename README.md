@@ -2,7 +2,7 @@
 
 A fully peer-to-peer Kanban board that syncs across devices without any central server. Built as a single HTML file with cryptographic authentication and real-time collaboration.
 
-![P2P Kanban Board Screenshot](Screenshot_2026-02-11_152538.png)
+![P2P Kanban Board Screenshot](screenshot.png)
 
 ## ✨ Cool Features
 

@@ -159,11 +159,58 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             cursor: move;
             transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            gap: 10px;
         }
 
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .card:hover .card-actions {
+            opacity: 1;
+        }
+
+        .card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .card-action-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            background: #e5e7eb;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-action-btn:hover {
+            background: #d1d5db;
+            transform: scale(1.1);
+        }
+
+        .card-action-btn.delete-btn:hover {
+            background: #fca5a5;
+        }
+
+        .archive-column {
+            background: #f9fafb;
+            border: 2px dashed #9ca3af;
+        }
+
+        .archive-column .card {
+            opacity: 0.8;
         }
 
         .card-title {
@@ -689,7 +736,8 @@
                         columns: [
                             {id: 'todo', title: 'To Do', cards: []},
                             {id: 'in-progress', title: 'In Progress', cards: []},
-                            {id: 'done', title: 'Done', cards: []}
+                            {id: 'done', title: 'Done', cards: []},
+                            {id: 'archive', title: 'Archived', cards: [], isArchive: true}
                         ]
                     }
                 };
@@ -699,6 +747,7 @@
                 this.pendingOfferData = null;
                 this.currentCardColumn = null;
                 this.editingCardId = null;
+                this.showArchive = false;
 
                 // LAN Discovery
                 this.broadcastChannel = null;
@@ -722,6 +771,18 @@
                     const boardData = storage.get('board');
                     if (boardData) {
                         this.board = boardData;
+                        
+                        // Migrate: ensure archive column exists
+                        const hasArchive = this.board.snapshot.columns.some(c => c.isArchive);
+                        if (!hasArchive) {
+                            this.board.snapshot.columns.push({
+                                id: 'archive',
+                                title: 'Archived',
+                                cards: [],
+                                isArchive: true
+                            });
+                            storage.set('board', this.board);
+                        }
                     }
 
                     document.getElementById('setupModal').classList.remove('active');
@@ -797,16 +858,17 @@
                 const boardEl = document.getElementById('board');
                 boardEl.innerHTML = '';
 
+                // Show all columns including archive
                 this.board.snapshot.columns.forEach(column => {
                     const columnEl = document.createElement('div');
-                    columnEl.className = 'column';
+                    columnEl.className = 'column' + (column.isArchive ? ' archive-column' : '');
                     columnEl.innerHTML = `
                         <div class="column-header">
-                            <span class="column-title">${column.title}</span>
+                            <span class="column-title">${column.isArchive ? '📦 ' : ''}${column.title}</span>
                             <span class="card-count">${column.cards.length}</span>
                         </div>
                         <div class="cards" data-column-id="${column.id}"></div>
-                        <button class="add-card" onclick="app.showAddCardModal('${column.id}')">+ Add Card</button>
+                        ${!column.isArchive ? `<button class="add-card" onclick="app.showAddCardModal('${column.id}')">+ Add Card</button>` : ''}
                     `;
 
                     const cardsEl = columnEl.querySelector('.cards');
@@ -829,37 +891,58 @@
                     });
 
                     column.cards.forEach(card => {
-                        const cardEl = document.createElement('div');
-                        cardEl.className = 'card';
-                        cardEl.draggable = true;
-                        cardEl.setAttribute('data-card-id', card.id);
-                        
-                        cardEl.addEventListener('dragstart', (e) => {
-                            e.dataTransfer.setData('text/plain', card.id);
-                            cardEl.classList.add('dragging');
-                        });
-
-                        cardEl.addEventListener('dragend', () => {
-                            cardEl.classList.remove('dragging');
-                        });
-
-                        cardEl.addEventListener('click', () => {
-                            this.showEditCardModal(card.id, column.id);
-                        });
-
-                        cardEl.innerHTML = `
-                            <div class="card-title">${card.title}</div>
-                            ${card.description ? `<div class="card-description">${card.description}</div>` : ''}
-                            <div class="card-meta">
-                                <span>ID: ${card.id.substring(0, 8)}</span>
-                            </div>
-                        `;
-
+                        const cardEl = this.createCardElement(card, column.id, column.isArchive);
                         cardsEl.appendChild(cardEl);
                     });
 
                     boardEl.appendChild(columnEl);
                 });
+            }
+
+            createCardElement(card, columnId, isArchived = false) {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                cardEl.draggable = true;
+                cardEl.setAttribute('data-card-id', card.id);
+                
+                cardEl.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', card.id);
+                    cardEl.classList.add('dragging');
+                });
+
+                cardEl.addEventListener('dragend', () => {
+                    cardEl.classList.remove('dragging');
+                });
+
+                const cardContent = document.createElement('div');
+                cardContent.style.flex = '1';
+                cardContent.addEventListener('click', () => {
+                    this.showEditCardModal(card.id, columnId);
+                });
+
+                cardContent.innerHTML = `
+                    <div class="card-title">${card.title}</div>
+                    ${card.description ? `<div class="card-description">${card.description}</div>` : ''}
+                    <div class="card-meta">
+                        <span>ID: ${card.id.substring(0, 8)}</span>
+                    </div>
+                `;
+
+                cardEl.appendChild(cardContent);
+
+                // Add delete button (only show on archived cards)
+                if (isArchived) {
+                    const actionsEl = document.createElement('div');
+                    actionsEl.className = 'card-actions';
+                    actionsEl.innerHTML = `
+                        <button class="card-action-btn delete-btn" onclick="app.confirmDeleteCard('${card.id}'); event.stopPropagation();" title="Delete permanently">
+                            🗑️
+                        </button>
+                    `;
+                    cardEl.appendChild(actionsEl);
+                }
+
+                return cardEl;
             }
 
             showAddCardModal(columnId) {
@@ -920,6 +1003,7 @@
                 }
 
                 this.closeCardModal();
+                this.showToast(this.editingCardId ? 'Card updated' : 'Card added');
             }
 
             async moveCard(cardId, toColumnId) {
@@ -928,6 +1012,20 @@
                     cardId,
                     toColumnId
                 });
+            }
+
+            confirmDeleteCard(cardId) {
+                if (confirm('Delete this card? This cannot be undone and will remove it from all synced devices.')) {
+                    this.deleteCard(cardId);
+                }
+            }
+
+            async deleteCard(cardId) {
+                await this.addOperation({
+                    type: 'delete_card',
+                    cardId
+                });
+                this.showToast('Card deleted');
             }
 
             async addOperation(action) {
@@ -993,6 +1091,54 @@
                             const toColumn = this.board.snapshot.columns.find(c => c.id === action.toColumnId);
                             if (toColumn) {
                                 toColumn.cards.push(card);
+                            }
+                        }
+                        break;
+
+                    case 'archive_card':
+                        // Find and remove card from current column
+                        let archiveCard = null;
+                        for (const col of this.board.snapshot.columns) {
+                            if (!col.isArchive) {
+                                const idx = col.cards.findIndex(c => c.id === action.cardId);
+                                if (idx !== -1) {
+                                    archiveCard = col.cards.splice(idx, 1)[0];
+                                    break;
+                                }
+                            }
+                        }
+                        // Add to archive
+                        if (archiveCard) {
+                            const archiveColumn = this.board.snapshot.columns.find(c => c.isArchive);
+                            if (archiveColumn) {
+                                archiveColumn.cards.push(archiveCard);
+                            }
+                        }
+                        break;
+
+                    case 'unarchive_card':
+                        // Find and remove from archive
+                        const archiveColumn = this.board.snapshot.columns.find(c => c.isArchive);
+                        if (archiveColumn) {
+                            const idx = archiveColumn.cards.findIndex(c => c.id === action.cardId);
+                            if (idx !== -1) {
+                                const unarchiveCard = archiveColumn.cards.splice(idx, 1)[0];
+                                // Add back to original column or todo if not specified
+                                const targetColumn = this.board.snapshot.columns.find(c => c.id === (action.toColumnId || 'todo'));
+                                if (targetColumn) {
+                                    targetColumn.cards.push(unarchiveCard);
+                                }
+                            }
+                        }
+                        break;
+
+                    case 'delete_card':
+                        // Remove card from all columns
+                        for (const col of this.board.snapshot.columns) {
+                            const idx = col.cards.findIndex(c => c.id === action.cardId);
+                            if (idx !== -1) {
+                                col.cards.splice(idx, 1);
+                                break;
                             }
                         }
                         break;
@@ -1731,7 +1877,8 @@
                     columns: [
                         {id: 'todo', title: 'To Do', cards: []},
                         {id: 'in-progress', title: 'In Progress', cards: []},
-                        {id: 'done', title: 'Done', cards: []}
+                        {id: 'done', title: 'Done', cards: []},
+                        {id: 'archive', title: 'Archived', cards: [], isArchive: true}
                     ]
                 };
 
